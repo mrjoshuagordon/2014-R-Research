@@ -3,7 +3,9 @@ setwd("~/Google Drive/PhD 2014/2014 R Research/Ebola")
 ### Required Libraries ###
 library(maps)
 library(mapproj)
-
+library(scales)
+library(mapplots)
+library(animation)
 # cases # 
 case.color = "red"
 
@@ -21,8 +23,9 @@ capitals <- data.frame(Capital = c("Porto-Novo", "Conakry", "Monrovia", "Bamako"
 # cast date column to date format 
 ebola$Date <- as.Date(ebola$Date, "%m-%d-%Y")
 
-# change NA to zero in cases
+# change NA to zero in cases and deaths
 ebola$Cases[is.na(ebola$Cases) == T] = 0 
+ebola$Deaths[is.na(ebola$Deaths) == T] = 0 
 
 # create a scale based on the relative number of cases  ###
 point.scale <- ceiling(ebola$Cases / 100)    
@@ -76,7 +79,7 @@ map.input <- c("Togo", "Benin", "Nigeria", "Niger", "Burkina Faso",
 map('world', region=map.input, col="black") 
 
 # jittered points #
-points(jitter(ebola.expanded$Long,30), jitter(ebola.expanded$Lat,30), col=case.color, cex=.5, pch=16)
+points(jitter(ebola.expanded$Long,30), jitter(ebola.expanded$Lat,30), col= case.color , cex=.5, pch=16)
 
 legend('topleft', 
        legend = "1 Case", 
@@ -87,3 +90,112 @@ legend('topleft',
 
 # map relevant capitals #
 text(x = capitals$Longitude, y = capitals$Latitude, labels = capitals$Capital, cex=.75 )
+
+
+###### add opacity color scale  #######
+
+
+# zoomed in map # 
+map.input <- c("Togo", "Benin", "Nigeria", "Niger", "Burkina Faso", 
+               "Ghana", "Ivory Coast", "Liberia", "Sierra Leone", "Guinea", "Mali")
+map('world', region=map.input, col="black") 
+
+# jittered points #
+points(jitter(ebola.expanded$Long,30), jitter(ebola.expanded$Lat,30), col= alpha(case.color, 0.5) , cex=.5, pch=16)
+
+legend('topleft', 
+       legend = "1 Case", 
+       pch = 16,
+       pt.cex = .5,
+       col = "red"       
+)
+
+# map relevant capitals #
+text(x = capitals$Longitude, y = capitals$Latitude, labels = capitals$Capital, cex=.75 )
+
+
+
+
+######## pie charts on map  ##########
+
+map.input <- c("Togo", "Benin", "Nigeria", "Niger", "Burkina Faso", 
+               "Ghana", "Ivory Coast", "Liberia", "Sierra Leone", "Guinea", "Mali", "Bissau",
+               "Senegal", "Mauritania","Banjul")
+map('world', region=map.input, col="black") 
+
+
+# set colors #
+plot.colors = c(alpha("orange", 0.6), alpha("blue", 0.6))
+
+legend('topleft', 
+       title = "Proportion of Deaths",
+       legend = c("Not Deaths", "Deaths"), 
+       col= plot.colors,
+       pch = c(22,22),
+       pt.bg = plot.colors,
+       inset = c(-.3,0)
+)
+
+
+
+
+for(i in 1:nrow(ebola)) {
+  total = ebola$Cases + ebola$Deaths
+  props = data.frame( ebola$Cases/(total), ebola$Deaths/total)
+  
+  if(is.na(props[,1][i]) == F) {
+    
+   
+    add.pie(z= c(props[,1][i], props[,2][i]), x=ebola$Long[i], 
+              y=ebola$Lat[i], radius= .35, 
+              col=plot.colors, labels="") 
+                      }
+
+}
+
+# map relevant capitals #
+text(x = capitals$Longitude-2.5, y = capitals$Latitude, labels = capitals$Capital, cex=.75 )
+
+
+
+## view the data over time ###### 
+
+# unique takes # 
+dates = unique(ebola$Date)
+
+#generate data set
+ebola.expanded.dates <-  ebola[rep(row.names(ebola), ebola$Cases), c(3,4,9)]  
+
+#save gif! #
+saveGIF({
+for(i in 1:length(dates)) {
+  
+ebola.sub = ebola.expanded.dates[which(ebola.expanded.dates$Date == dates[i]),]  
+
+map.input <- c("Togo", "Benin", "Nigeria", "Niger", "Burkina Faso", 
+               "Ghana", "Ivory Coast", "Liberia", "Sierra Leone", "Guinea", "Mali")
+map('world', region=map.input, col="black") 
+title(main=dates[i])
+
+# jittered points #
+points(jitter(ebola.sub$Long,3), jitter(ebola.sub$Lat,3), col= alpha(case.color, 0.5) , cex=.5, pch=16)
+
+legend('topleft', 
+       legend = "1 Case", 
+       pch = 16,
+       pt.cex = .5,
+       col = "red"       
+)
+
+# map relevant capitals #
+text(x = capitals$Longitude, y = capitals$Latitude, labels = capitals$Capital, cex=.75 )
+
+
+}
+
+})
+
+
+
+
+
