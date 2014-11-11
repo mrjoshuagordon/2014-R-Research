@@ -23,7 +23,8 @@ p3 <- joinPolys(p1,p2)
 par(mar=c(3,3,1,1))
 plot(1,1,ylim=c(0,5),xlim=c(0,9), t="n", xlab="", ylab="")
 polygon(p1$X, p1$Y, border=2)
-polygon(p2$X, p2$Y)
+
+
 polygon(p3$X, p3$Y, col='blue')
 
 m <- cbind(p3$X, p3$Y)
