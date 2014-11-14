@@ -1,57 +1,37 @@
-#data
-setwd('~/Google Drive/PhD 2014/2014 R Research/CSEP1/relm')
-load("RELMdata.RData")
-
-
-# Libraries 
-lib <- c('spatstat', 'deldir', 'splancs', 'PBSmapping', 'scales', 'datautils', 'RColorBrewer', 'maps', 'fields','Hmisc')
-lapply(lib, require, character.only=T)
-
-#options
-options(digits=9)
-
-#grid set up
-fgrid <- unique(data.frame(ebel$'minimum longitude',ebel$'max longitude', ebel$'min latitude', ebel$'max latitude'))
-names(fgrid) <- c('min.long','max.long', 'min.lat', 'max.lat')
-
-coords <- paste(helms[,1], helms[,2], helms[,3], helms[,4], sep="")
-fgrd <- paste(fgrid[,1],fgrid[,2], fgrid[,3], fgrid[,4], sep="")
-gridNumbers <- match(coords,fgrd)
-
-gridNumbers <- data.frame(gridNumber, helms[,c(1:4,9)])
-
-# aggregate the rate over each grid cell 
-helmsAgg <- aggregate(gridNumbers$rate,by=list(gridNumbers$gridNumber,
-                                               gridNumbers$minimum.longitude,
-                                               gridNumbers$max.longitude,
-                                               gridNumbers$min.latitude,
-                                               gridNumbers$max.latitude                                              
-),FUN=sum)
-
-
-
-
-names(helmsAgg) <- names(gridNumbers)
-helmsAgg <- helmsAgg[order(helmsAgg[,1]),]
-helmsAgg$rate <- helmsAgg$rate*1.75
 head(helmsAgg)
+hsim <- rpois( n = length(helmsAgg$rate) , lambda = helmsAgg$rate)
+
+long.sim <- c()
+lat.sim <- c()
+for(i in 1:length(helmsAgg$rate)){
+long.sim <-  c( long.sim, runif(n = hsim[i],helmsAgg$minimum.longitude[i], helmsAgg$max.longitude[i]))
+lat.sim <- c( lat.sim, runif(n = hsim[i],helmsAgg$min.latitude[i], helmsAgg$max.latitude[i]))
+}
+
+sobs <- data.frame(Latitude = lat.sim, Longitude = long.sim )
 
 
-#veronoi cell setup 
+# plot sims
+map('state', 'california', lty = 2, lwd=1, xlim=c(xmin, xmax), ylim=c(ymin, ymax))
+map.axes()
+points(sobs$Longitude, sobs$Latitude, pch=16, col=alpha("black",.5))
 
-# set up min and max bounds for deldir
+
+
+
+
+
+
+findResiduals = function(obs, helmsAgg){
+
 xmin <- min(helmsAgg$minimum.longitude)
 xmax <- max(helmsAgg$max.longitude)
 ymin <- min(helmsAgg$min.latitude)
 ymax <- max(helmsAgg$max.latitude)
-
-# subset the data to 4.95 and higher/ run deldir / get tilelist
-
+  
+    
 vers <- deldir(obs$Longitude,  y=obs$Latitude, rw=c(xmin, xmax, ymin, ymax))
 tl <- tile.list(vers)
-
-
-
 # viewing window
 # store residuals 
 X <- c()
@@ -60,19 +40,18 @@ raw.res <- c()
 scaled.res <- c()
 counter = c() 
 
-
 for(i in 1:length(tl)){
-
+  
   
   # overlay voronoi
   p2.x.long <- tl[[i]]$x
   p2.y.lat <- tl[[i]]$y
   p2.length <- length(p2.x.long)
   p2 <- data.frame(PID=rep(2, p2.length), POS=1:p2.length, X= p2.x.long , Y= p2.y.lat ) 
-
+  
   
   # Find which grid points to compare the cell to
-  gridMatch <- which(helmsAgg$minimum.longitude  >= min(p2.x.long) - .1 & 
+  gridMatch <- which(helmsAgg$minimum.longitude >= min(p2.x.long) - .1 & 
                        helmsAgg$max.longitude    <= max(p2.x.long)+ .1 &
                        helmsAgg$min.latitude     >= min(p2.y.lat) - .1 &
                        helmsAgg$max.latitude     <= max(p2.y.lat) + .1 )
@@ -80,8 +59,8 @@ for(i in 1:length(tl)){
   #initiate area vector
   am <- c()
   
-    for(j in gridMatch) {
-      counter = c(counter,j)
+  for(j in gridMatch) {
+    counter = c(counter,j)
     #get the coordinates of the grid
     p1.x.long <-  helmsAgg[j,c(2,3)]
     p1.y.lat  <-  helmsAgg[j,c(4,5)]
@@ -102,7 +81,6 @@ for(i in 1:length(tl)){
     # compare the polygons, if there is actually overlap 
     p3 <- joinPolys(p1,p2)
     if(!is.null(p3)) {
-     # polygon(p3$X, p3$Y, col='blue')
       
       #calculate area
       
@@ -121,14 +99,55 @@ for(i in 1:length(tl)){
   scaled.res[i] <- (1-sum(am))/sqrt(sum(am))
   raw.res[i] <- 1 - sum(am)
   
-  if(i %% 5 == 0 ) print(i)
+  if(i %% 50 == 0 ) print(i)
 } # end tl Veronoi i loop
 
+return(scaled.res)
 
-# checking 
-sum(X) / sum(helmsAgg$rate)
+} # end findResiduals function 
 
 
-length(unique(counter)) 
-nrow(helmsAgg)
+#function to simulate data from the model 
+generateObs <- function(helmsAgg){
+  hsim <- rpois( n = length(helmsAgg$rate) , lambda = helmsAgg$rate)
+  
+  long.sim <- c()
+  lat.sim <- c()
+  for(i in 1:length(helmsAgg$rate)){
+    long.sim <-  c( long.sim, runif(n = hsim[i],helmsAgg$minimum.longitude[i], helmsAgg$max.longitude[i]))
+    lat.sim <- c( lat.sim, runif(n = hsim[i],helmsAgg$min.latitude[i], helmsAgg$max.latitude[i]))
+  }
+  
+  sobs <- data.frame(Latitude = lat.sim, Longitude = long.sim )
+  
+  return(sobs)
+  
+}
+
+
+# function to run the entire sim
+simH <- function(helmsAgg){
+sobs <- generateObs (helmsAgg = helmsAgg)
+sc.sim1 <- findResiduals(obs= sobs, helmsAgg = helmsAgg)
+}
+
+a <- Sys.time()
+# repeat the sim
+sm1 <- replicate(100, simH(helmsAgg = helmsAgg))
+
+save(sm1, file = 'sim1helms.RData')
+
+hist(unlist(sm1), prob=T, breaks=100, main=length(unlist(sm1)))
+lines(density(sc.sim1, bw=1.4), col="red")
+b <- Sys.time()
+b - a
+
+par(mfrow=c(2,1))
+
+hist(scaled.res, prob=T, xlim=c(-2,6), breaks=100, main="Scaled Residuals for Observed")
+lines(density(scaled.res, bw=1.4), col="red")
+
+
+hist(unlist(sm1), prob=T, xlim=c(-2,6), breaks=100, main="Scaled Residuals for 100 Simulations")
+lines(density(unlist(sm1)), col="red") 
 
